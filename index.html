@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>旅行チェックリスト管理</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background: url('https://source.unsplash.com/1600x900/?travel') no-repeat center center fixed;
+      background-size: cover;
+      color: #fff;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    h1, h2, h3 {
+      text-align: center;
+      color: #fff;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+    }
+
+    div {
+      margin: 20px 0;
+    }
+
+    input[type="text"], select {
+      padding: 10px;
+      margin: 5px 0;
+      width: 80%;
+      max-width: 400px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+      font-size: 16px;
+      background-color: rgba(255, 255, 255, 0.8);
+      color: #333;
+    }
+
+    button {
+      padding: 10px 16px;
+      margin: 5px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    #checklist-container {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+
+    #checklist-items div {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 8px 0;
+      padding: 8px;
+      background: #f1f1f1;
+      border-radius: 8px;
+    }
+
+    #checklist-items input[type="checkbox"] {
+      transform: scale(1.2);
+      margin-right: 10px;
+    }
+
+    label {
+      flex-grow: 1;
+      font-size: 16px;
+      color: #000;  /* 文字色を黒に変更 */
+    }
+
+    @media (max-width: 600px) {
+      input[type="text"], select {
+        width: 100%;
+      }
+    }
+
+    #upload-container {
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    #image-preview {
+      width: 100%;
+      max-width: 400px;
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>旅行チェックリスト管理</h1>
+
+  <!-- 背景画像設定 -->
+  <div id="upload-container">
+    <h2>背景画像設定</h2>
+    <input type="file" id="background-upload" accept="image/*">
+    <img id="image-preview" src="" alt="選択した画像のプレビュー">
+  </div>
+
+  <!-- 旅行名作成フォーム -->
+  <div>
+    <input type="text" id="trip-name" placeholder="旅行の名前を入力">
+    <button type="button" onclick="createNewTrip()">新規作成</button>
+  </div>
+
+  <h2>旅行リスト</h2>
+  <div>
+    <select id="trip-selector">
+      <option value="">旅行を選択</option>
+    </select>
+    <button type="button" onclick="loadChecklist()">読み込み</button>
+    <button type="button" onclick="copyTrip()">複製</button>
+    <button type="button" onclick="deleteTrip()">削除</button>
+  </div>
+
+  <div id="checklist-container" style="margin-top: 20px;">
+    <h3>チェックリスト</h3>
+    <input type="text" id="new-item" placeholder="新しい項目を入力">
+    <button type="button" onclick="addItem()">項目追加</button>
+    <div id="checklist-items"></div>
+    <br>
+    <button type="button" onclick="clearChecklist()">チェックをクリア</button>
+    <button type="button" onclick="saveChecklist()">保存</button>
+  </div>
+
+  <script>
+    let currentTripName = '';
+
+    function formatDate(date) {
+      return date.getFullYear() + "-" +
+             String(date.getMonth() + 1).padStart(2, '0') + "-" +
+             String(date.getDate()).padStart(2, '0') + " " +
+             String(date.getHours()).padStart(2, '0') + ":" +
+             String(date.getMinutes()).padStart(2, '0') + ":" +
+             String(date.getSeconds()).padStart(2, '0');
+    }
+
+    function createNewTrip() {
+      const tripName = document.getElementById("trip-name").value.trim();
+      if (!tripName) {
+        alert("旅行の名前を入力してください");
+        return;
+      }
+
+      if (localStorage.getItem(tripName)) {
+        alert("同じ名前の旅行がすでに存在します");
+        return;
+      }
+
+      const now = new Date();
+      const tripData = {
+        checklist: [],
+        createdAt: formatDate(now),
+        updatedAt: formatDate(now)
+      };
+
+      localStorage.setItem(tripName, JSON.stringify(tripData));
+      currentTripName = tripName;
+      loadTripOptions();
+      document.getElementById("trip-name").value = "";
+      document.getElementById("trip-selector").value = tripName;
+      loadChecklist();
+    }
+
+    function loadTripOptions() {
+      const tripSelector = document.getElementById("trip-selector");
+      tripSelector.innerHTML = '<option value="">旅行を選択</option>';
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        try {
+          const data = JSON.parse(localStorage.getItem(key));
+          if (data.checklist && data.createdAt) {
+            const option = document.createElement("option");
+            option.value = key;
+            option.textContent = `${key}（${data.createdAt.split(' ')[0]}）`;
+            tripSelector.appendChild(option);
+          }
+        } catch (e) {
+          // 無視
+        }
+      }
+    }
+
+    function loadChecklist() {
+      const tripName = document.getElementById("trip-selector").value;
+      if (!tripName) {
+        alert("旅行を選択してください");
+        return;
+      }
+
+      currentTripName = tripName;
+      const savedTrip = JSON.parse(localStorage.getItem(tripName));
+      const savedChecklist = savedTrip.checklist || [];
+
+      const checklistContainer = document.getElementById("checklist-items");
+      checklistContainer.innerHTML = "";
+
+      savedChecklist.forEach((item, index) => {
+        const newCheckbox = document.createElement("input");
+        newCheckbox.type = "checkbox";
+        newCheckbox.checked = item.checked;
+
+        const newLabel = document.createElement("label");
+        newLabel.textContent = item.label;
+
+        const newDeleteButton = document.createElement("button");
+        newDeleteButton.textContent = "削除";
+        newDeleteButton.type = "button";
+        newDeleteButton.addEventListener("click", function() {
+          deleteItem(index);
+        });
+
+        const newItemDiv = document.createElement("div");
+        newItemDiv.appendChild(newCheckbox);
+        newItemDiv.appendChild(newLabel);
+        newItemDiv.appendChild(newDeleteButton);
+        checklistContainer.appendChild(newItemDiv);
+      });
+    }
+
+    function addItem() {
+      const newItem = document.getElementById("new-item").value.trim();
+      if (newItem === "") return;
+
+      const checklistContainer = document.getElementById("checklist-items");
+
+      const newCheckbox = document.createElement("input");
+      newCheckbox.type = "checkbox";
+
+      const newLabel = document.createElement("label");
+      newLabel.textContent = newItem;
+
+      const newDeleteButton = document.createElement("button");
+      newDeleteButton.textContent = "削除";
+      newDeleteButton.type = "button";
+      newDeleteButton.addEventListener("click", function() {
+        checklistContainer.removeChild(newItemDiv);
+      });
+
+      const newItemDiv = document.createElement("div");
+      newItemDiv.appendChild(newCheckbox);
+      newItemDiv.appendChild(newLabel);
+      newItemDiv.appendChild(newDeleteButton);
+      checklistContainer.appendChild(newItemDiv);
+
+      document.getElementById("new-item").value = "";
+    }
+
+    function deleteItem(index) {
+      const savedTrip = JSON.parse(localStorage.getItem(currentTripName));
+      savedTrip.checklist.splice(index, 1);
+      savedTrip.updatedAt = formatDate(new Date());
+      localStorage.setItem(currentTripName, JSON.stringify(savedTrip));
+      loadChecklist();
+    }
+
+    function clearChecklist() {
+      const items = document.querySelectorAll('#checklist-items input[type="checkbox"]');
+      items.forEach(item => item.checked = false);
+    }
+
+    function saveChecklist() {
+      if (!currentTripName) return;
+
+      const checklistContainer = document.getElementById("checklist-items");
+      const items = Array.from(checklistContainer.children).map(div => ({
+        label: div.querySelector('label').textContent,
+        checked: div.querySelector('input[type="checkbox"]').checked
+      }));
+
+      const savedTrip = JSON.parse(localStorage.getItem(currentTripName));
+      savedTrip.checklist = items;
+      savedTrip.updatedAt = formatDate(new Date());
+
+      localStorage.setItem(currentTripName, JSON.stringify(savedTrip));
+      alert("保存しました！");
+    }
+
+    function copyTrip() {
+      const sourceTripName = document.getElementById("trip-selector").value;
+      if (!sourceTripName) {
+        alert("複製する旅行を選択してください");
+        return;
+      }
+
+      const newTripName = prompt("複製先の旅行名を入力してください", sourceTripName + "（コピー）");
+      if (!newTripName || newTripName.trim() === "") {
+        alert("新しい旅行名を入力してください");
+        return;
+      }
+
+      if (localStorage.getItem(newTripName)) {
+        alert("その名前の旅行はすでに存在します");
+        return;
+      }
+
+      const sourceData = JSON.parse(localStorage.getItem(sourceTripName));
+      const now = new Date();
+
+      const newTripData = {
+        checklist: sourceData.checklist,
+        createdAt: formatDate(now),
+        updatedAt: formatDate(now)
+      };
+
+      localStorage.setItem(newTripName, JSON.stringify(newTripData));
+      loadTripOptions();
+      document.getElementById("trip-selector").value = newTripName;
+      loadChecklist();
+      alert(`「${sourceTripName}」を「${newTripName}」として複製しました！`);
+    }
+
+    function deleteTrip() {
+      const tripName = document.getElementById("trip-selector").value;
+      if (!tripName) {
+        alert("削除する旅行を選択してください");
+        return;
+      }
+      if (confirm(`本当に「${tripName}」を削除しますか？`)) {
+        localStorage.removeItem(tripName);
+        loadTripOptions();
+        document.getElementById("checklist-items").innerHTML = "";
+        alert("削除しました！");
+      }
+    }
+
+    // 画像アップロード時の処理
+    document.getElementById("background-upload").addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const imageUrl = event.target.result;
+          document.body.style.backgroundImage = `url(${imageUrl})`;
+          document.getElementById("image-preview").src = imageUrl;
+          document.getElementById("image-preview").style.display = "block";
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // ページ読み込み時にリストをロード
+    window.onload = function() {
+      loadTripOptions();
+    }
+  </script>
+</body>
+</html>
